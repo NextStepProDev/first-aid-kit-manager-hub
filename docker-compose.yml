@@ -15,7 +15,7 @@ services:
       retries: 5
 
   api:
-    image: ghcr.io/nextstepprodev/first-aid-kit-api:latest
+    image: ghcr.io/nextstepprodev/first-aid-kit-api:master
     container_name: first-aid-kit-api
     platform: linux/amd64
     depends_on:
