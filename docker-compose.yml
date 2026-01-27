@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.4
     container_name: first-aid-kit-db
     environment:
       POSTGRES_DB: first_aid_kit
@@ -15,7 +15,7 @@ services:
       retries: 5
 
   api:
-    image: ghcr.io/nextstepprodev/first-aid-kit-api:master
+    image: ghcr.io/nextstepprodev/first-aid-kit-api:latest
     container_name: first-aid-kit-api
     platform: linux/amd64
     depends_on:
