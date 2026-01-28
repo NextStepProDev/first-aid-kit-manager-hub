@@ -19,7 +19,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 256M
 
   api:
     image: ghcr.io/nextstepprodev/first-aid-kit-api:master
