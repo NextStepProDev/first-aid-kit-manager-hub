@@ -1,4 +1,17 @@
 services:
+  # Strażnik domeny i certyfikatów SSL
+  nginx-proxy:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: nginx-proxy
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '81:81'
+      - '443:443'
+    volumes:
+      - ./nginx-data:/data
+      - ./nginx-letsencrypt:/etc/letsencrypt
+
   postgres:
     image: postgres:17.4
     container_name: first-aid-kit-db
@@ -9,8 +22,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d first_aid_kit"]
       interval: 5s
@@ -24,39 +35,32 @@ services:
   api:
     image: ghcr.io/nextstepprodev/first-aid-kit-api:master
     container_name: first-aid-kit-api
-    platform: linux/amd64
     restart: always
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "8080:8081"
-    deploy:
-      resources:
-        limits:
-          memory: 512M
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SERVER_PORT: 8081
-      SERVER_ADDRESS: 0.0.0.0
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/first_aid_kit
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_MAIL_USERNAME: ${MAIL_USERNAME}
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
-      APP_CORS_ALLOWED_ORIGINS: "http://firstaidkit.pl,https://firstaidkit.pl,http://89.168.67.173"
+      APP_CORS_ALLOWED_ORIGINS: "https://twoja-domena.pl,https://api.twoja-domena.pl" # PODMIEŃ NA SWOJĄ DOMENĘ
       JWT_SECRET: ${JWT_SECRET}
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   frontend:
     image: ghcr.io/nextstepprodev/first-aid-kit-web:master
     container_name: first-aid-kit-frontend
-    platform: linux/amd64
+    restart: always
     depends_on:
       - api
-    ports:
-      - "80:80"
 
 volumes:
   postgres_data:
-    external: false
     name: first-aid-kit-persistent-db
