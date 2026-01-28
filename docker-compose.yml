@@ -50,3 +50,5 @@ services:
 
 volumes:
   postgres_data:
+    external: false
+    name: first-aid-kit-persistent-db
