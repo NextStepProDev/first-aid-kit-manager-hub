@@ -7,6 +7,8 @@
 ![React](https://img.shields.io/badge/React-19-61dafb)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
+**Stop throwing money in the trash.** The average household loses hundreds of dollars every year on expired medications that pile up unnoticed in cabinets and drawers. First Aid Kit Manager puts you back in control — it tracks every drug in your home pharmacy, warns you before anything expires, and makes sure you never waste another pill or penny. Set it up once, and let the app do the rest.
+
 One-command deployment for the complete First Aid Kit Manager stack. This repository contains Docker Compose configuration to run the entire application (Frontend + Backend API + PostgreSQL database) with a single command.
 
 ## Key Features
