@@ -63,7 +63,6 @@ That's it! Wait for containers to start (first run may take a few minutes to pul
 |---------|-----|-------------|
 | Frontend UI | http://localhost | Main web application |
 | Backend API | http://localhost:8080 | REST API |
-| Swagger Docs | http://localhost:8080/swagger-ui/index.html | API documentation |
 | pgAdmin | http://localhost:5050 | Database management (optional) |
 
 ## System Architecture
