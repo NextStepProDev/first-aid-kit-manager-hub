@@ -46,10 +46,10 @@ services:
       platform: linux/amd64                                                                                                                     
       depends_on:                                                                                                                               
         - api                                                                                                                                   
-      ports:                                                                                                                                    
-        - "80:80"                                                                                                                               
+      expose:                                                                                                                                   
+        - "80"                                                                                                                                  
                                                                                                                                                 
   volumes:                                                                                                                                      
     postgres_data:                                                                                                                              
       external: false                                                                                                                           
-      name: first-aid-kit-persistent-db
+      name: first-aid-kit-persistent-db  
