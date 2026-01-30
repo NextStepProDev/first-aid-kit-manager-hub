@@ -57,6 +57,8 @@ services:
   frontend:
     image: ghcr.io/nextstepprodev/first-aid-kit-web:master
     container_name: first-aid-kit-frontend
+    environment:
+      - REACT_APP_API_URL=http://api.firstaidkit.pl/api
     restart: always
     depends_on:
       - api
