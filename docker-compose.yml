@@ -37,6 +37,7 @@ services:
       SPRING_MAIL_USERNAME: ${MAIL_USERNAME}
       SPRING_MAIL_PASSWORD: ${MAIL_PASSWORD}
       APP_CORS_ALLOWED_ORIGINS: "http://localhost,http://127.0.0.1,https://www.firstaidkit.pl,http://www.firstaidkit.pl,https://firstaidkit.pl,http://firstaidkit.pl"
+      APP_FRONTEND_URL: "https://firstaidkit.pl"
       JWT_SECRET: ${JWT_SECRET}
 
   frontend:
