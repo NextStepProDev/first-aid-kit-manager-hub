@@ -21,6 +21,7 @@ services:
     image: ghcr.io/nextstepprodev/first-aid-kit-api:master
     container_name: first-aid-kit-api
     platform: linux/amd64
+    mem_limit: 350m
     restart: always
     depends_on:
       postgres:
