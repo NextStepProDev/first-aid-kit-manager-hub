@@ -18,7 +18,7 @@ services:
       retries: 5
 
   api:
-    image: ghcr.io/nextstepprodev/first-aid-kit-api:master
+    image: ghcr.io/nextstepprodev/first-aid-kit-api:${VERSION:-master}
     container_name: first-aid-kit-api
     platform: linux/amd64
     mem_limit: 350m
@@ -42,7 +42,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
 
   frontend:
-    image: ghcr.io/nextstepprodev/first-aid-kit-web:master
+    image: ghcr.io/nextstepprodev/first-aid-kit-web:${VERSION:-master}
     container_name: first-aid-kit-frontend
     platform: linux/amd64
     depends_on:
