@@ -47,8 +47,8 @@ services:
     platform: linux/amd64
     depends_on:
       - api
-    expose:
-      - "80"
+    ports:
+      - "80:80"
 
 volumes:
   postgres_data:
