@@ -87,8 +87,8 @@ That's it! Wait for containers to start (first run may take a few minutes to pul
 
 | Service | Image | Port | Description |
 |---------|-------|------|-------------|
-| frontend | `ghcr.io/nextstepprodev/first-aid-kit-web:master` | 80 | React 19 web application |
-| api | `ghcr.io/nextstepprodev/first-aid-kit-api:master` | 8080 | Spring Boot REST API |
+| frontend | `ghcr.io/nextstepprodev/first-aid-kit-web:main` | 80 | React 19 web application |
+| api | `ghcr.io/nextstepprodev/first-aid-kit-api:main` | 8080 | Spring Boot REST API |
 | postgres | `postgres:17.4` | 5432 | PostgreSQL database |
 
 ## Common Commands

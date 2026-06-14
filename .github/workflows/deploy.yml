@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Image tag to deploy (e.g. master, sha-abc1234)
+        description: Image tag to deploy (e.g. main, sha-abc1234)
         required: true
-        default: master
+        default: main
 
 jobs:
   deploy:
@@ -22,7 +22,7 @@ jobs:
           if [ -f VERSION ]; then
             VERSION=$(cat VERSION)
           else
-            VERSION="master"
+            VERSION="main"
           fi
           # Use input version if provided, otherwise use VERSION file
           if [ -n "${{ inputs.version }}" ]; then
