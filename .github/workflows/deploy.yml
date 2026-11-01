@@ -4,9 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Image tag to deploy (e.g. main, sha-abc1234)
-        required: true
-        default: main
+        description: Optional image tag override (e.g. sha-abc1234). Leave blank to deploy main.
+        required: false
+        default: ''
+
+# The job token reads the repository and nothing else: the server pulls the images itself, and a
+# workflow with no `permissions` gets whatever the repository default allows.
+permissions:
+  contents: read
 
 jobs:
   deploy:
@@ -14,41 +19,126 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Read VERSION file
+      - name: Resolve deploy version
         id: version
+        # Through the environment, not `${{ }}` in the script: an expression is pasted into the
+        # shell before it runs, so a quote or `$(…)` typed in the field would run as code — here
+        # and, through the output, in the script on the server. The tag pattern below stops it.
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [ -f VERSION ]; then
-            VERSION=$(cat VERSION)
-          else
-            VERSION="main"
+          # Blank deploys `main`, not the VERSION file: that file is the hub's own release number,
+          # and the app images carry no matching tag (the api repo has no VERSION and tags `dev`).
+          VERSION="${INPUT_VERSION:-main}"
+          if [[ ! "$VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
+            echo "ERROR: not an image tag: letters, digits, dot, dash, underscore only." >&2
+            exit 1
           fi
-          # Use input version if provided, otherwise use VERSION file
-          if [ -n "${{ inputs.version }}" ]; then
-            VERSION="${{ inputs.version }}"
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Deploying version: $VERSION"
 
       - name: Encode setup-swap.sh
         id: swap
-        run: echo "content=$(base64 -w 0 setup-swap.sh)" >> $GITHUB_OUTPUT
+        run: echo "content=$(base64 -w 0 setup-swap.sh)" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to Oracle Cloud VM
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         env:
           SWAP_B64: ${{ steps.swap.outputs.content }}
+          VERSION: ${{ steps.version.outputs.version }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: SWAP_B64
+          envs: SWAP_B64,VERSION
           script: |
             # Ensure swap exists before starting memory-hungry containers (idempotent).
             echo "$SWAP_B64" | base64 -d > ${{ secrets.DEPLOY_PATH }}/setup-swap.sh
             sudo -n bash ${{ secrets.DEPLOY_PATH }}/setup-swap.sh || echo "WARN: swap setup skipped/failed (check passwordless sudo)"
             cd ${{ secrets.DEPLOY_PATH }}
-            export VERSION=${{ steps.version.outputs.version }}
-            docker compose -f docker-compose.yml pull
-            docker compose -f docker-compose.yml up -d
+            # VERSION arrives exported through `envs` (pattern-checked above), never pasted in.
+            # Persist it into the host .env so a later MANUAL `docker compose pull/up -d` on the
+            # box uses the same tag instead of a stale pin. Only takes effect where the compose
+            # file reads ${VERSION}; a compose with a fixed `:main` ignores it.
+            if grep -q '^VERSION=' .env; then
+              sed -i "s/^VERSION=.*/VERSION=${VERSION}/" .env
+            else
+              echo "VERSION=${VERSION}" >> .env
+            fi
+            # Old app images go BEFORE the pull. `compose pull` keeps every image it ever pulled,
+            # and a pull stopped by a full disk ends the deploy before any later cleanup could run.
+            # Keeps whatever a container uses plus the two newest images per repo: the current
+            # release and the previous one, the quick rollback; with the new pull that is at most
+            # three on disk. Counted by image ID, not by tag: one image carries main, latest, sha-…
+            # and a version tag, and counting rows would keep one image and delete the rollback.
+            # Scoped to the app images on purpose: postgres is not ours to prune. `|| echo`
+            # throughout: cleanup must never fail the deploy.
+            IN_USE=$(docker ps -aq | xargs -r docker inspect --format '{{.Image}}' | sed 's/^sha256://' | cut -c1-12 | tr '\n' ' ')
+            for repo in first-aid-kit-api first-aid-kit-web; do
+              # Sorted by creation date here, not trusted from `docker images`: the containerd
+              # image store promises no order, and an unsorted list could rank the newest image
+              # third and delete it. <none> rows are dropped BEFORE the ranking: an untagged image
+              # (the previous `main` once a new `main` takes its tag) would otherwise fill one of
+              # the two places, the prune below would delete it anyway, and only the running image
+              # would be left, without a rollback.
+              docker images --filter "reference=ghcr.io/*/${repo}" --format '{{.CreatedAt}}\t{{.ID}} {{.Repository}}:{{.Tag}}' \
+                | sort -r | cut -f2 \
+                | awk -v used="$IN_USE" '
+                    BEGIN { n = split(used, u, " "); for (i = 1; i <= n; i++) inuse[u[i]] = 1 }
+                    $2 ~ /:<none>$/ { next }
+                    !($1 in rank) { rank[$1] = ++k }
+                    rank[$1] > 2 && !($1 in inuse) { print $2 }' \
+                | xargs -r docker rmi || echo "WARN: could not remove some ${repo} images"
+            done
+            docker image prune -f || echo "WARN: dangling image prune failed"
+            df -h / | tail -1
+            # `|| exit 1` on these two, and only these: the script has no `set -e` (v1.2.x of the
+            # SSH action dropped `script_stop` and runs to the end), so the step reports the LAST
+            # command. A failed pull (full disk, missing tag) left the old containers up and the
+            # deploy went green on the old version. Not `set -e` on the whole script: swap and
+            # cleanup are meant to warn.
+            docker compose -f docker-compose.yml pull || exit 1
+            docker compose -f docker-compose.yml up -d || exit 1
+
+      - name: Verify deployment health
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: VERSION
+          script: |
+            # Healthy is not enough: the PREVIOUS api is healthy too, so a release that never
+            # replaced it would pass. Both containers must run the image the deployed tag names
+            # NOW. Compared by image ID, not tag: a container left on yesterday's `main` still
+            # reports the tag `main`.
+            for pair in first-aid-kit-api:first-aid-kit-api first-aid-kit-frontend:first-aid-kit-web; do
+              c=${pair%%:*}; ref="ghcr.io/nextstepprodev/${pair#*:}:${VERSION}"
+              RUNNING=$(docker inspect --format '{{.Image}}' "$c" 2>/dev/null || echo "missing")
+              WANTED=$(docker image inspect --format '{{.Id}}' "$ref" 2>/dev/null || echo "not pulled")
+              if [ "$RUNNING" != "$WANTED" ]; then
+                echo "ERROR: $c runs image '$RUNNING', but $ref is '$WANTED'."
+                exit 1
+              fi
+              echo "$c runs $ref ($RUNNING)"
+            done
+            # The api has no compose healthcheck (and the VM's compose is edited by hand), so ask
+            # actuator from inside the container: busybox wget exits 1 on an HTTP error or a
+            # refused connection, and Spring answers 503 when DOWN. Body not printed: these logs
+            # are public.
+            echo "Waiting for the api to become healthy..."
+            for i in $(seq 1 16); do
+              if docker exec first-aid-kit-api wget -q -T 5 -O /dev/null http://localhost:8081/actuator/health; then
+                echo "Attempt $i/16: api is UP. Deployment verified."
+                exit 0
+              fi
+              echo "Attempt $i/16: api not healthy yet"
+              sleep 15
+            done
+            echo "ERROR: api did not become healthy within 4 minutes."
+            docker logs --tail 80 first-aid-kit-api
+            exit 1

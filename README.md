@@ -113,6 +113,16 @@ docker compose restart api
 docker compose up -d --build
 ```
 
+## Production Deploy (GitHub Actions)
+
+Production is deployed by the manual **Deploy** workflow (`.github/workflows/deploy.yml`, *Run workflow*):
+
+- **Version** – leave the field blank to deploy `main`, or enter an image tag (e.g. `sha-abc1234`). Anything that is not a tag (`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`) is rejected before the job connects to the server. The resolved tag is also written as `VERSION=` to the server's `.env`. It only takes effect where the server's compose file uses `${VERSION}`; a compose pinned to `:main` ignores it, and verification then fails for any other tag.
+- **Disk cleanup** – before every pull, old `first-aid-kit-api` / `first-aid-kit-web` images are removed. Kept: every image a container uses, plus the two newest images per repository (the current release and the previous one, for rollback). Images are counted by image ID, not by tag. Postgres and other images are not touched. Cleanup only warns; it never fails the deploy.
+- **Fails loudly** – a failed `docker compose pull` or `up -d` fails the job, so the old version no longer stays up behind a green run.
+- **Verification** – after `up -d`, both containers must run exactly the image the deployed tag names (compared by image ID), and the API must answer `/actuator/health` with 200 within 4 minutes. Otherwise the job fails and prints the API's last logs.
+- Actions are pinned to commit SHAs; the job token is read-only (`contents: read`).
+
 ## Troubleshooting
 
 ### Port 8080 Already in Use
